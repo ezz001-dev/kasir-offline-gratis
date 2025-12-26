@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 // Import Providers
 import 'providers/product_provider.dart';
+import 'providers/cart_provider.dart'; // Tambahkan ini
+import 'providers/customer_provider.dart';
 
 // Import Screens
 import 'screens/dashboard_screen.dart';
@@ -22,6 +24,8 @@ class MyApp extends StatelessWidget {
       providers: [
         // Daftarkan semua provider di sini
         ChangeNotifierProvider(create: (_) => ProductProvider()),
+        ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(create: (_) => CustomerProvider()),
       ],
       child: MaterialApp(
         title: 'Aplikasi Kasir Offline',
@@ -44,29 +48,20 @@ class MyApp extends StatelessWidget {
         surface: Colors.white,
         secondaryContainer: secondaryColor,
       ),
-
-      // Setup Font Google
       textTheme: GoogleFonts.interTextTheme().copyWith(
         displayLarge: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         titleLarge: GoogleFonts.poppins(fontWeight: FontWeight.w600),
       ),
-
-      // Styling AppBar
       appBarTheme: const AppBarTheme(
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
       ),
-
-      // Styling Floating Action Button
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
-
-      // Styling Card
-      // Menggunakan CardThemeData sesuai pesan error untuk konfigurasi tema
       cardTheme: CardThemeData(
         elevation: 0,
         color: Colors.white,
@@ -75,8 +70,6 @@ class MyApp extends StatelessWidget {
           side: const BorderSide(color: Color(0xFFE5E7EB)),
         ),
       ),
-
-      // Styling Input Decoration (Form)
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFFF9FAFB),

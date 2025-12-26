@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'product_list_screen.dart'; // Import screen baru
+import 'product_list_screen.dart';
+import 'cashier_screen.dart';
+import 'customer_list_screen.dart'; // Import screen pelanggan
+import 'debt_screen.dart'; // Import screen kasbon
+import 'report_screen.dart'; // Import screen laporan
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -20,7 +24,10 @@ class DashboardScreen extends StatelessWidget {
             title: "Kasir",
             color: Colors.blue,
             onTap: () {
-              // Navigasi ke Kasir (Nanti Phase 3)
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CashierScreen()),
+              );
             },
           ),
           _buildMenuCard(
@@ -29,7 +36,6 @@ class DashboardScreen extends StatelessWidget {
             title: "Produk",
             color: Colors.orange,
             onTap: () {
-              // --- NAVIGASI KE SINI ---
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -44,7 +50,24 @@ class DashboardScreen extends StatelessWidget {
             title: "Pelanggan",
             color: Colors.green,
             onTap: () {
-              // Navigasi ke Pelanggan (Nanti)
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CustomerListScreen(),
+                ),
+              );
+            },
+          ),
+          _buildMenuCard(
+            context,
+            icon: Icons.account_balance_wallet,
+            title: "Buku Kasbon",
+            color: Colors.red,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const DebtScreen()),
+              );
             },
           ),
           _buildMenuCard(
@@ -53,7 +76,11 @@ class DashboardScreen extends StatelessWidget {
             title: "Laporan",
             color: Colors.purple,
             onTap: () {
-              // Navigasi ke Laporan (Nanti)
+              // --- NAVIGASI KE LAPORAN ---
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ReportScreen()),
+              );
             },
           ),
         ],
@@ -61,7 +88,6 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // ... (Bagian widget _buildMenuCard ke bawah biarkan sama seperti sebelumnya)
   Widget _buildMenuCard(
     BuildContext context, {
     required IconData icon,
