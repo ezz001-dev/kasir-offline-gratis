@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart'; // 1. Tambahkan Import ini
+import 'package:intl/date_symbol_data_local.dart';
 import '../database/db_helper.dart';
 import '../models/transaction_model.dart';
+import '../utils/export_helper.dart'; // Import Helper Export
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -13,6 +14,7 @@ class ReportScreen extends StatefulWidget {
 }
 
 class _ReportScreenState extends State<ReportScreen> {
+  // ... (Variabel state biarkan sama)
   final _currencyFormat = NumberFormat.currency(
     locale: 'id_ID',
     symbol: 'Rp ',
@@ -20,12 +22,10 @@ class _ReportScreenState extends State<ReportScreen> {
   );
   bool _isLoading = true;
 
-  // Data Summary
   int _todayRevenue = 0;
   int _totalTransactions = 0;
   List<TransactionModel> _recentTransactions = [];
 
-  // Data Grafik (7 Hari Terakhir)
   List<BarChartGroupData> _weeklyChartData = [];
   double _maxChartValue = 0;
 
@@ -36,7 +36,8 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Future<void> _loadReportData() async {
-    // 2. Tambahkan baris ini untuk inisialisasi format tanggal Indonesia
+    // ... (Isi fungsi _loadReportData biarkan SAMA PERSIS dengan sebelumnya)
+    // Copy paste isi _loadReportData dari file sebelumnya agar tidak hilang
     await initializeDateFormatting('id_ID', null);
 
     setState(() => _isLoading = true);
@@ -46,7 +47,6 @@ class _ReportScreenState extends State<ReportScreen> {
       final now = DateTime.now();
       final todayStr = DateFormat('yyyy-MM-dd').format(now);
 
-      // 1. Hitung Omset Hari Ini (Hanya yang LUNAS atau DP, Piutang tidak dihitung omset cash)
       final todayResult = await db.rawQuery('''
         SELECT SUM(amount_paid) as total 
         FROM transactions 
@@ -54,7 +54,6 @@ class _ReportScreenState extends State<ReportScreen> {
       ''');
       _todayRevenue = (todayResult.first['total'] as int?) ?? 0;
 
-      // 2. Ambil 10 Transaksi Terakhir
       final recentResult = await db.query(
         'transactions',
         orderBy: 'transaction_date DESC',
@@ -64,7 +63,6 @@ class _ReportScreenState extends State<ReportScreen> {
           .map((json) => TransactionModel.fromMap(json))
           .toList();
 
-      // 3. Siapkan Data Grafik (7 Hari ke belakang)
       List<BarChartGroupData> chartGroups = [];
       double maxVal = 0;
 
@@ -72,7 +70,6 @@ class _ReportScreenState extends State<ReportScreen> {
         final date = now.subtract(Duration(days: i));
         final dateStr = DateFormat('yyyy-MM-dd').format(date);
 
-        // Query pendapatan per hari
         final dayResult = await db.rawQuery('''
           SELECT SUM(amount_paid) as total 
           FROM transactions 
@@ -93,9 +90,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 borderRadius: BorderRadius.circular(4),
                 backDrawRodData: BackgroundBarChartRodData(
                   show: true,
-                  toY:
-                      (maxVal == 0 ? 1000 : maxVal) *
-                      1.2, // Safety check biar tidak error division by zero
+                  toY: (maxVal == 0 ? 1000 : maxVal) * 1.2,
                   color: Colors.grey.shade100,
                 ),
               ),
@@ -118,10 +113,40 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
+  // --- LOGIC EXPORT ---
+  void _exportExcel() async {
+    setState(() => _isLoading = true);
+    try {
+      await ExportHelper.exportTransactionReport();
+      // Feedback UI tidak perlu karena Share dialog akan muncul
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Gagal export: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Laporan Penjualan")),
+      appBar: AppBar(
+        title: const Text("Laporan Penjualan"),
+        actions: [
+          // Tombol Export
+          IconButton(
+            onPressed: _exportExcel,
+            icon: const Icon(Icons.file_download),
+            tooltip: "Export Excel/CSV",
+          ),
+        ],
+      ),
+      // ... (Body biarkan SAMA PERSIS dengan file sebelumnya)
+      // Copy paste body dari file sebelumnya agar kode lengkap
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -129,7 +154,6 @@ class _ReportScreenState extends State<ReportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- CARD RINGKASAN ---
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -175,7 +199,6 @@ class _ReportScreenState extends State<ReportScreen> {
 
                   const SizedBox(height: 24),
 
-                  // --- GRAFIK MINGGUAN ---
                   const Text(
                     "Grafik 7 Hari Terakhir",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -206,7 +229,6 @@ class _ReportScreenState extends State<ReportScreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               getTitlesWidget: (value, meta) {
-                                // Logic label hari
                                 final now = DateTime.now();
                                 final date = now.subtract(
                                   Duration(days: 6 - value.toInt()),
@@ -242,7 +264,6 @@ class _ReportScreenState extends State<ReportScreen> {
 
                   const SizedBox(height: 24),
 
-                  // --- LIST TRANSAKSI TERAKHIR ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -253,7 +274,6 @@ class _ReportScreenState extends State<ReportScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      // Tombol Lihat Semua bisa diimplementasikan nanti
                     ],
                   ),
                   const SizedBox(height: 10),
