@@ -1,10 +1,11 @@
+import 'dart:io'; // Import untuk File image
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/product_provider.dart';
 import '../providers/cart_provider.dart';
 import '../widgets/barcode_scanner_simple.dart';
-import 'cart_screen.dart'; // Nanti kita buat file ini
+import 'cart_screen.dart';
 
 class CashierScreen extends StatefulWidget {
   const CashierScreen({super.key});
@@ -68,13 +69,21 @@ class _CashierScreenState extends State<CashierScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Kasir"),
-        actions: [
-          IconButton(
-            onPressed: _onScanBarcode,
-            icon: const Icon(Icons.qr_code_scanner),
-          ),
-        ],
+        // Actions dihapus karena tombol scan pindah ke bawah
       ),
+
+      // --- TOMBOL SCAN DI TENGAH BAWAH ---
+      floatingActionButton: FloatingActionButton(
+        onPressed: _onScanBarcode,
+        backgroundColor: Colors.black87, // Warna gelap agar kontras
+        foregroundColor: Colors.white,
+        elevation: 4,
+        child: const Icon(Icons.qr_code_scanner, size: 28),
+      ),
+      // Posisi float di tengah bawah.
+      // Scaffold otomatis akan menaikkan tombol ini jika BottomSheet (Keranjang) muncul.
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+
       body: Column(
         children: [
           // Search Bar
@@ -103,12 +112,8 @@ class _CashierScreenState extends State<CashierScreen> {
                 }
 
                 return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(
-                    12,
-                    0,
-                    12,
-                    100,
-                  ), // Bawah dikasih space utk panel keranjang
+                  // Tambahkan padding bawah lebih besar agar item paling bawah tidak tertutup tombol Scan/Cart
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 100),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     childAspectRatio: 0.8,
@@ -126,20 +131,36 @@ class _CashierScreenState extends State<CashierScreen> {
                         ).addToCart(product);
                       },
                       child: Card(
+                        clipBehavior:
+                            Clip.antiAlias, // Agar gambar tidak keluar radius
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // --- BAGIAN GAMBAR PRODUK ---
                             Expanded(
                               child: Container(
-                                color: Colors.grey.shade100,
                                 width: double.infinity,
-                                child: Icon(
-                                  Icons.shopping_bag_outlined,
-                                  size: 40,
-                                  color: Colors.blue.shade200,
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  image: product.imagePath != null
+                                      ? DecorationImage(
+                                          image: FileImage(
+                                            File(product.imagePath!),
+                                          ),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
                                 ),
+                                child: product.imagePath == null
+                                    ? Icon(
+                                        Icons.shopping_bag_outlined,
+                                        size: 40,
+                                        color: Colors.blue.shade200,
+                                      )
+                                    : null,
                               ),
                             ),
+                            // -----------------------------
                             Padding(
                               padding: const EdgeInsets.all(8.0),
                               child: Column(
@@ -158,6 +179,7 @@ class _CashierScreenState extends State<CashierScreen> {
                                     _currencyFormat.format(product.price),
                                     style: TextStyle(
                                       color: Theme.of(context).primaryColor,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                   Text(
@@ -182,7 +204,8 @@ class _CashierScreenState extends State<CashierScreen> {
         ],
       ),
 
-      // Floating Cart Panel
+      // Floating Cart Panel (BottomSheet)
+      // Tombol Scan otomatis akan "duduk" di atas panel ini jika panel muncul
       bottomSheet: Consumer<CartProvider>(
         builder: (context, cart, _) {
           if (cart.items.isEmpty) return const SizedBox.shrink();
