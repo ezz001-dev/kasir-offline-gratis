@@ -13,7 +13,6 @@ class CustomerProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
 
   // --- CUSTOMER CRUD ---
-
   Future<void> getCustomers() async {
     _isLoading = true;
     notifyListeners();
@@ -32,14 +31,14 @@ class CustomerProvider with ChangeNotifier {
     await getCustomers();
   }
 
-  // --- DEBT / PIUTANG LOGIC ---
+  // --- DEBT LOGIC ---
 
-  // Ambil semua transaksi yang statusnya 'Utang' (is_debt=1) dan belum lunas (debt_amount > 0)
   Future<void> getDebtTransactions() async {
     _isLoading = true;
     notifyListeners();
 
     final db = await DatabaseHelper.instance.database;
+    // Ambil transaksi yang belum lunas
     final result = await db.rawQuery('''
       SELECT t.*, c.name as customer_name 
       FROM transactions t
@@ -55,34 +54,50 @@ class CustomerProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Proses Pelunasan (Cicil atau Lunas)
+  // Ambil history pembayaran per transaksi
+  Future<List<DebtHistoryModel>> getTransactionHistory(
+    int transactionId,
+  ) async {
+    final data = await DatabaseHelper.instance.getDebtHistory(transactionId);
+    return data.map((json) => DebtHistoryModel.fromMap(json)).toList();
+  }
+
+  // Proses Bayar Cicilan
   Future<void> repayDebt(int transactionId, int amountPay) async {
     final db = await DatabaseHelper.instance.database;
 
-    // Ambil data transaksi saat ini
-    final result = await db.query(
-      'transactions',
-      where: 'id = ?',
-      whereArgs: [transactionId],
-    );
-    if (result.isEmpty) return;
+    // Gunakan Transaction agar atomik (Update + Insert History)
+    await db.transaction((txn) async {
+      // 1. Ambil data saat ini
+      final result = await txn.query(
+        'transactions',
+        where: 'id = ?',
+        whereArgs: [transactionId],
+      );
+      if (result.isEmpty) return;
 
-    final currentTrans = TransactionModel.fromMap(result.first);
+      final currentTrans = TransactionModel.fromMap(result.first);
 
-    // Hitung sisa utang baru
-    int newPaid = currentTrans.amountPaid + amountPay;
-    int newDebt = currentTrans.debtAmount - amountPay;
+      // 2. Hitung nilai baru
+      int newPaid = currentTrans.amountPaid + amountPay;
+      int newDebt = currentTrans.debtAmount - amountPay;
+      if (newDebt < 0) newDebt = 0;
 
-    // Update Database
-    await db.update(
-      'transactions',
-      {
-        'amount_paid': newPaid,
-        'debt_amount': newDebt < 0 ? 0 : newDebt, // Prevent negative
-      },
-      where: 'id = ?',
-      whereArgs: [transactionId],
-    );
+      // 3. Update Tabel Transaksi
+      await txn.update(
+        'transactions',
+        {'amount_paid': newPaid, 'debt_amount': newDebt},
+        where: 'id = ?',
+        whereArgs: [transactionId],
+      );
+
+      // 4. Catat ke Tabel Histori
+      await txn.insert('debt_history', {
+        'transaction_id': transactionId,
+        'date': DateTime.now().toIso8601String(),
+        'amount_paid': amountPay,
+      });
+    });
 
     await getDebtTransactions(); // Refresh list utang
   }
