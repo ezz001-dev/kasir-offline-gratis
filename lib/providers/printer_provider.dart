@@ -1,33 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:flutter/services.dart';
 
 class PrinterProvider with ChangeNotifier {
-  final BlueThermalPrinter _bluetooth = BlueThermalPrinter.instance;
-
-  List<BluetoothDevice> _devices = [];
-  BluetoothDevice? _selectedDevice;
+  // Menggunakan library print_bluetooth_thermal
+  List<BluetoothInfo> _devices = [];
+  String? _connectedMacAddress; // Kita simpan MAC Address untuk cek status
   bool _isConnected = false;
   bool _isLoading = false;
 
-  List<BluetoothDevice> get devices => _devices;
-  BluetoothDevice? get selectedDevice => _selectedDevice;
+  // Getter
+  List<BluetoothInfo> get devices => _devices;
   bool get isConnected => _isConnected;
   bool get isLoading => _isLoading;
-
-  PrinterProvider() {
-    _init();
-  }
-
-  // Cek status koneksi saat inisialisasi
-  void _init() {
-    _bluetooth.isConnected.then((isConnected) {
-      if (isConnected == true) {
-        _isConnected = true;
-        notifyListeners();
-      }
-    });
-  }
+  String? get connectedMacAddress => _connectedMacAddress;
 
   // 1. Scan Perangkat Bluetooth
   Future<void> scanDevices() async {
@@ -35,9 +21,10 @@ class PrinterProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      List<BluetoothDevice> devices = await _bluetooth.getBondedDevices();
-      _devices = devices;
-    } on PlatformException catch (e) {
+      final List<BluetoothInfo> result =
+          await PrintBluetoothThermal.pairedBluetooths;
+      _devices = result;
+    } catch (e) {
       debugPrint("Error scan devices: $e");
     } finally {
       _isLoading = false;
@@ -46,19 +33,19 @@ class PrinterProvider with ChangeNotifier {
   }
 
   // 2. Koneksi ke Printer
-  Future<void> connect(BluetoothDevice device) async {
+  Future<void> connect(String macAddress) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      if (_selectedDevice != null && _selectedDevice != device) {
-        await _bluetooth.disconnect();
+      final bool result = await PrintBluetoothThermal.connect(
+        macPrinterAddress: macAddress,
+      );
+      _isConnected = result;
+      if (result) {
+        _connectedMacAddress = macAddress;
       }
-
-      await _bluetooth.connect(device);
-      _selectedDevice = device;
-      _isConnected = true;
-    } on PlatformException catch (e) {
+    } catch (e) {
       debugPrint("Error connect: $e");
       _isConnected = false;
     } finally {
@@ -69,9 +56,9 @@ class PrinterProvider with ChangeNotifier {
 
   // 3. Putus Koneksi
   Future<void> disconnect() async {
-    await _bluetooth.disconnect();
+    await PrintBluetoothThermal.disconnect;
     _isConnected = false;
-    _selectedDevice = null;
+    _connectedMacAddress = null;
     notifyListeners();
   }
 
@@ -79,14 +66,15 @@ class PrinterProvider with ChangeNotifier {
   Future<void> printBytes(List<int> bytes) async {
     if (!_isConnected) return;
     try {
-      await _bluetooth.writeBytes(Uint8List.fromList(bytes));
+      await PrintBluetoothThermal.writeBytes(bytes);
     } catch (e) {
       debugPrint("Print Error: $e");
     }
   }
 
-  // Cek apakah bluetooth HP nyala
-  Future<bool> get isBluetoothOn async {
-    return (await _bluetooth.isOn) ?? false;
+  // Cek Status Koneksi (Refresh)
+  Future<void> checkConnection() async {
+    _isConnected = await PrintBluetoothThermal.connectionStatus;
+    notifyListeners();
   }
 }

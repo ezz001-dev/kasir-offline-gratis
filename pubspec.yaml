@@ -48,7 +48,8 @@ dependencies:
 
   # --- Hardware Features (Siapkan dari sekarang) ---
   mobile_scanner: ^3.5.5 # Scan Barcode
-  blue_thermal_printer: ^1.2.3 # (Opsional: Uncomment saat masuk fase printer)
+  # blue_thermal_printer: ^1.2.3 # (Opsional: Uncomment saat masuk fase printer)
+  print_bluetooth_thermal: ^1.1.1 # Library pengganti
   esc_pos_utils: ^1.1.0        # (Opsional: Untuk format struk)
 
 dev_dependencies:

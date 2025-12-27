@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import '../providers/printer_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -14,9 +13,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto scan saat halaman dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<PrinterProvider>(context, listen: false).scanDevices();
+      // Cek koneksi dulu, lalu scan
+      final printer = Provider.of<PrinterProvider>(context, listen: false);
+      printer.checkConnection();
+      printer.scanDevices();
     });
   }
 
@@ -45,14 +46,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Text(
                           printer.isConnected
-                              ? "Terhubung ke: ${printer.selectedDevice?.name}"
+                              ? "Printer Terhubung"
                               : "Printer belum terhubung",
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         if (printer.isConnected)
-                          const Text(
-                            "Siap mencetak struk",
-                            style: TextStyle(fontSize: 12, color: Colors.green),
+                          Text(
+                            "MAC: ${printer.connectedMacAddress ?? '-'}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.green,
+                            ),
                           ),
                       ],
                     ),
@@ -71,14 +75,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const Divider(height: 1),
 
-              // Tombol Scan & Loading
+              // Tombol Scan
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      "Daftar Perangkat Bluetooth",
+                      "Daftar Perangkat Paired",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -103,68 +107,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // List Perangkat
               Expanded(
                 child: printer.devices.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.bluetooth_searching,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text("Tidak ada perangkat ditemukan"),
-                            TextButton(
-                              onPressed: () async {
-                                // Cek apakah bluetooth mati
-                                if (!await printer.isBluetoothOn) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        "Mohon nyalakan Bluetooth HP Anda",
-                                      ),
-                                    ),
-                                  );
-                                } else {
-                                  printer.scanDevices();
-                                }
-                              },
-                              child: const Text("Cek Bluetooth"),
-                            ),
-                          ],
+                    ? const Center(
+                        child: Text(
+                          "Tidak ada perangkat bluetooth tersimpan.\nPastikan Anda sudah pairing di setting HP.",
+                          textAlign: TextAlign.center,
                         ),
                       )
                     : ListView.builder(
                         itemCount: printer.devices.length,
                         itemBuilder: (context, index) {
                           final device = printer.devices[index];
-                          final isSelected =
-                              printer.selectedDevice?.address == device.address;
+                          final isConnected =
+                              printer.connectedMacAddress == device.macAdress;
 
                           return ListTile(
-                            leading: const Icon(Icons.print),
-                            title: Text(device.name ?? "Unknown Device"),
-                            subtitle: Text(device.address ?? "-"),
-                            trailing: isSelected
+                            leading: const Icon(Icons.bluetooth),
+                            title: Text(device.name),
+                            subtitle: Text(device.macAdress),
+                            trailing: isConnected
                                 ? const Icon(
                                     Icons.check_circle,
                                     color: Colors.green,
                                   )
                                 : ElevatedButton(
-                                    onPressed: () => printer.connect(device),
+                                    onPressed: () =>
+                                        printer.connect(device.macAdress),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue.shade50,
                                       foregroundColor: Colors.blue,
                                     ),
                                     child: const Text("Sambung"),
                                   ),
-                            onTap: () => printer.connect(device),
+                            onTap: () => printer.connect(device.macAdress),
                           );
                         },
                       ),
               ),
 
-              // Tombol Test Print (Hanya muncul jika connect)
+              // Tombol Test Print
               if (printer.isConnected)
                 Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -172,15 +152,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () async {
-                        // Test Print Sederhana (Manual Byte)
-                        // \x1B\x40 = Initialize
-                        // \x0A = Line Feed
+                        // Test Print
                         printer.printBytes([
-                          0x1B,
-                          0x40,
-                          ...("TEST PRINT BERHASIL\n".codeUnits),
-                          ...("-------------------\n".codeUnits),
-                          ...("Cek Printer OK\n\n\n".codeUnits),
+                          0x1B, 0x40, // Init
+                          ...("TEST PRINT OK\n\n\n".codeUnits),
                         ]);
                       },
                       style: ElevatedButton.styleFrom(
