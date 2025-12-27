@@ -102,3 +102,35 @@ class TransactionItem {
     };
   }
 }
+
+// --- CLASS BARU: DebtHistoryModel ---
+class DebtHistoryModel {
+  final int? id;
+  final int transactionId;
+  final String date;
+  final int amountPaid;
+
+  DebtHistoryModel({
+    this.id,
+    required this.transactionId,
+    required this.date,
+    required this.amountPaid,
+  });
+
+  factory DebtHistoryModel.fromMap(Map<String, dynamic> json) =>
+      DebtHistoryModel(
+        id: json['id'],
+        transactionId: json['transaction_id'],
+        date: json['date'],
+        amountPaid: json['amount_paid'],
+      );
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'transaction_id': transactionId,
+      'date': date,
+      'amount_paid': amountPaid,
+    };
+  }
+}
