@@ -63,7 +63,7 @@ dependencies:
   archive: ^3.3.7
   file_picker: ^8.0.0
 
-  flutter_beep: 1.0.0 
+  
 
 dev_dependencies:
   flutter_test:

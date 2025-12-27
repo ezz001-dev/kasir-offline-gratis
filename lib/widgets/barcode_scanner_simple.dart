@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:flutter_beep/flutter_beep.dart';
+import 'package:flutter/services.dart';
 
 class SimpleBarcodeScannerPage extends StatefulWidget {
   const SimpleBarcodeScannerPage({super.key});
@@ -44,7 +44,7 @@ class _SimpleBarcodeScannerPageState extends State<SimpleBarcodeScannerPage> {
         children: [
           MobileScanner(
             controller: cameraController,
-            onDetect: (capture) {
+            onDetect: (capture) async {
               if (_isScanned) return;
               final List<Barcode> barcodes = capture.barcodes;
 
@@ -52,7 +52,11 @@ class _SimpleBarcodeScannerPageState extends State<SimpleBarcodeScannerPage> {
                 if (barcode.rawValue != null) {
                   _isScanned = true;
 
-                  FlutterBeep.beep();
+                  // 2. Mainkan Suara & Getar Bawaan (Tanpa Library Error)
+                  await SystemSound.play(
+                    SystemSoundType.click,
+                  ); // Bunyi "Beep/Click" sistem
+                  await HapticFeedback.mediumImpact(); // Getaran "Tuk"
 
                   debugPrint('Barcode found! ${barcode.rawValue}');
                   Navigator.pop(
