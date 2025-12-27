@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class SimpleBarcodeScannerPage extends StatefulWidget {
   const SimpleBarcodeScannerPage({super.key});
@@ -14,6 +15,16 @@ class _SimpleBarcodeScannerPageState extends State<SimpleBarcodeScannerPage> {
   // Controller untuk menangani kamera
   MobileScannerController cameraController = MobileScannerController();
   bool _isScanned = false; // Mencegah scan ganda dalam 1 waktu
+
+  // 2. Inisialisasi Audio Player
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    cameraController.dispose();
+    _audioPlayer.dispose(); // 3. Bersihkan player saat keluar halaman
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,10 +63,14 @@ class _SimpleBarcodeScannerPageState extends State<SimpleBarcodeScannerPage> {
                 if (barcode.rawValue != null) {
                   _isScanned = true;
 
-                  // 2. Mainkan Suara & Getar Bawaan (Tanpa Library Error)
-                  await SystemSound.play(
-                    SystemSoundType.click,
-                  ); // Bunyi "Beep/Click" sistem
+                  // 4. Mainkan Suara Custom
+                  // Pastikan file 'beep.mp3' ada di folder assets/sounds/
+                  try {
+                    await _audioPlayer.play(AssetSource('sounds/beep.mp3'));
+                  } catch (e) {
+                    debugPrint("Gagal memutar audio: $e");
+                  }
+
                   await HapticFeedback.mediumImpact(); // Getaran "Tuk"
 
                   debugPrint('Barcode found! ${barcode.rawValue}');
