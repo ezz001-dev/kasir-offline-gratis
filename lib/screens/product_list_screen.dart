@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -23,7 +24,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
   @override
   void initState() {
     super.initState();
-    // Load data saat pertama buka
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ProductProvider>(
         context,
@@ -31,11 +31,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
       ).getProducts(isRefresh: true);
     });
 
-    // Listener untuk Infinite Scroll
     _scrollController.addListener(() {
       if (_scrollController.position.pixels ==
           _scrollController.position.maxScrollExtent) {
-        // Jika mentok bawah, load more
         Provider.of<ProductProvider>(context, listen: false).getProducts();
       }
     });
@@ -48,7 +46,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
     super.dispose();
   }
 
-  // Logic Debounce Search sederhana
   void _onSearchChanged(String query) {
     Provider.of<ProductProvider>(context, listen: false).searchProduct(query);
   }
@@ -69,7 +66,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
       ),
       body: Column(
         children: [
-          // --- Search Bar ---
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -81,8 +77,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
             ),
           ),
-
-          // --- Product List ---
           Expanded(
             child: Consumer<ProductProvider>(
               builder: (context, provider, child) {
@@ -112,7 +106,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.only(bottom: 80), // Space for FAB
+                  padding: const EdgeInsets.only(bottom: 80),
                   itemCount:
                       provider.products.length + (provider.hasMore ? 1 : 0),
                   itemBuilder: (context, index) {
@@ -132,18 +126,37 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         vertical: 6,
                       ),
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.blue.shade50,
-                          child: Text(
-                            product.name.isNotEmpty
-                                ? product.name[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: Colors.blue.shade700,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        contentPadding: const EdgeInsets.all(10),
+                        // --- Update Logic Gambar Thumbnail ---
+                        leading: Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            image: product.imagePath != null
+                                ? DecorationImage(
+                                    image: FileImage(File(product.imagePath!)),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
                           ),
+                          child: product.imagePath == null
+                              ? Center(
+                                  child: Text(
+                                    product.name.isNotEmpty
+                                        ? product.name[0].toUpperCase()
+                                        : '?',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade700,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 20,
+                                    ),
+                                  ),
+                                )
+                              : null,
                         ),
+                        // -------------------------------------
                         title: Text(
                           product.name,
                           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -151,6 +164,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const SizedBox(height: 4),
                             Text("Stok: ${product.stock}"),
                             if (product.barcode != null)
                               Text(
@@ -171,7 +185,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           ),
                         ),
                         onTap: () {
-                          // Edit Produk
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -181,7 +194,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           );
                         },
                         onLongPress: () {
-                          // Hapus Produk (Dialog Konfirmasi)
                           showDialog(
                             context: context,
                             builder: (ctx) => AlertDialog(

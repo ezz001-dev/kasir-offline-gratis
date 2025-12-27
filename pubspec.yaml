@@ -52,6 +52,9 @@ dependencies:
   print_bluetooth_thermal: ^1.1.1 # Library pengganti
   esc_pos_utils: ^1.1.0        # (Opsional: Untuk format struk)
 
+  image_picker: ^1.0.7  # Untuk ambil gambar
+  path_provider: ^2.1.2 # Untuk simpan gambar ke folder aplikasi
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

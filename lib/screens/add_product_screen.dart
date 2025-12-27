@@ -1,11 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../models/product_model.dart';
 import '../providers/product_provider.dart';
 import '../widgets/barcode_scanner_simple.dart';
 
 class AddProductScreen extends StatefulWidget {
-  final Product? product; // Jika null = Mode Tambah, Jika ada = Mode Edit
+  final Product? product;
 
   const AddProductScreen({super.key, this.product});
 
@@ -16,24 +20,111 @@ class AddProductScreen extends StatefulWidget {
 class _AddProductScreenState extends State<AddProductScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers
   final _nameController = TextEditingController();
   final _barcodeController = TextEditingController();
   final _priceController = TextEditingController();
   final _costController = TextEditingController();
   final _stockController = TextEditingController();
 
+  File? _selectedImage; // Menyimpan file gambar yang dipilih sementara
+
   @override
   void initState() {
     super.initState();
-    // Jika mode edit, isi form dengan data lama
     if (widget.product != null) {
       _nameController.text = widget.product!.name;
       _barcodeController.text = widget.product!.barcode ?? '';
       _priceController.text = widget.product!.price.toString();
       _costController.text = widget.product!.costPrice.toString();
       _stockController.text = widget.product!.stock.toString();
+
+      // Load gambar existing
+      if (widget.product!.imagePath != null) {
+        _selectedImage = File(widget.product!.imagePath!);
+      }
     }
+  }
+
+  // Fungsi Pilih Gambar
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: source,
+      maxWidth: 600,
+    ); // Compress size
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+      });
+    }
+  }
+
+  // Fungsi Simpan Gambar ke Direktori Aplikasi (Supaya permanen)
+  Future<String?> _saveImagePermanent(File imageFile) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName = path.basename(imageFile.path);
+      final savedImage = await imageFile.copy('${appDir.path}/$fileName');
+      return savedImage.path;
+    } catch (e) {
+      debugPrint("Gagal simpan gambar: $e");
+      return null;
+    }
+  }
+
+  void _saveProduct() async {
+    if (_formKey.currentState!.validate()) {
+      String? savedImagePath;
+
+      // Logic simpan gambar jika ada perubahan
+      if (_selectedImage != null) {
+        // Cek apakah gambar baru atau lama
+        // Jika path gambar sama dengan yang di DB, tidak perlu save ulang
+        if (widget.product?.imagePath != _selectedImage!.path) {
+          savedImagePath = await _saveImagePermanent(_selectedImage!);
+        } else {
+          savedImagePath = _selectedImage!.path;
+        }
+      }
+
+      final newProduct = Product(
+        id: widget.product?.id,
+        name: _nameController.text,
+        barcode: _barcodeController.text.isEmpty
+            ? null
+            : _barcodeController.text,
+        price: int.parse(_priceController.text),
+        costPrice: int.parse(_costController.text),
+        stock: int.parse(_stockController.text),
+        imagePath: savedImagePath, // Path gambar disimpan di DB
+      );
+
+      final provider = Provider.of<ProductProvider>(context, listen: false);
+
+      if (widget.product == null) {
+        await provider.addProduct(newProduct);
+      } else {
+        await provider.editProduct(newProduct);
+      }
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Produk berhasil disimpan')),
+        );
+      }
+    }
+  }
+
+  // ... (Scan Barcode & Dispose methods sama seperti sebelumnya)
+  Future<void> _scanBarcode() async {
+    final scannedCode = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SimpleBarcodeScannerPage()),
+    );
+    if (scannedCode != null)
+      setState(() => _barcodeController.text = scannedCode);
   }
 
   @override
@@ -44,55 +135,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _costController.dispose();
     _stockController.dispose();
     super.dispose();
-  }
-
-  // Fungsi Scan Barcode
-  Future<void> _scanBarcode() async {
-    final scannedCode = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SimpleBarcodeScannerPage()),
-    );
-
-    if (scannedCode != null) {
-      setState(() {
-        _barcodeController.text = scannedCode;
-      });
-    }
-  }
-
-  // Fungsi Simpan
-  void _saveProduct() {
-    if (_formKey.currentState!.validate()) {
-      final name = _nameController.text;
-      final barcode = _barcodeController.text.isEmpty
-          ? null
-          : _barcodeController.text;
-      final price = int.parse(_priceController.text);
-      final costPrice = int.parse(_costController.text);
-      final stock = int.parse(_stockController.text);
-
-      final newProduct = Product(
-        id: widget.product?.id, // Null jika tambah baru
-        name: name,
-        barcode: barcode,
-        price: price,
-        costPrice: costPrice,
-        stock: stock,
-      );
-
-      final provider = Provider.of<ProductProvider>(context, listen: false);
-
-      if (widget.product == null) {
-        provider.addProduct(newProduct);
-      } else {
-        provider.editProduct(newProduct);
-      }
-
-      Navigator.pop(context); // Kembali ke list
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Produk berhasil disimpan')));
-    }
   }
 
   @override
@@ -108,7 +150,71 @@ class _AddProductScreenState extends State<AddProductScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // --- Barcode Section ---
+              // --- Image Picker Area ---
+              GestureDetector(
+                onTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    builder: (ctx) => SafeArea(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.camera_alt),
+                            title: const Text('Ambil Foto (Kamera)'),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _pickImage(ImageSource.camera);
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.photo_library),
+                            title: const Text('Pilih dari Galeri'),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _pickImage(ImageSource.gallery);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade400),
+                    image: _selectedImage != null
+                        ? DecorationImage(
+                            image: FileImage(_selectedImage!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: _selectedImage == null
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_a_photo,
+                              size: 50,
+                              color: Colors.grey.shade600,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Tambah Foto Produk",
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- Barcode ---
               Row(
                 children: [
                   Expanded(
@@ -135,15 +241,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               const SizedBox(height: 16),
 
-              // --- Product Details ---
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: 'Nama Produk',
                   prefixIcon: Icon(Icons.local_offer_outlined),
                 ),
-                validator: (value) =>
-                    value!.isEmpty ? 'Nama tidak boleh kosong' : null,
+                validator: (value) => value!.isEmpty ? 'Wajib isi' : null,
               ),
               const SizedBox(height: 16),
 
@@ -155,13 +259,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: 'Harga Jual',
-                        prefixIcon: Text(
-                          "Rp ",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        prefixIconConstraints: BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 0,
+                        prefixIcon: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Text(
+                            "Rp",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                       validator: (value) => value!.isEmpty ? 'Wajib isi' : null,
@@ -174,13 +277,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: 'Harga Modal',
-                        prefixIcon: Text(
-                          "Rp ",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        prefixIconConstraints: BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 0,
+                        prefixIcon: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Text(
+                            "Rp",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                       validator: (value) => value!.isEmpty ? 'Wajib isi' : null,
@@ -201,7 +303,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               const SizedBox(height: 32),
 
-              // --- Save Button ---
               ElevatedButton(
                 onPressed: _saveProduct,
                 style: ElevatedButton.styleFrom(
