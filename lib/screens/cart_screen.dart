@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/cart_provider.dart';
 import '../providers/product_provider.dart';
-import '../models/customer_model.dart'; // Import Model Customer
-import 'customer_list_screen.dart'; // Import Screen untuk pilih customer
+import '../providers/printer_provider.dart'; // 1. Import Printer Provider
+import '../models/customer_model.dart';
+import '../models/transaction_model.dart'; // Import TransactionModel untuk struk
+import '../utils/receipt_generator.dart'; // 2. Import Generator Struk
+import 'customer_list_screen.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -27,7 +30,15 @@ class _CartScreenState extends State<CartScreen> {
     // State lokal untuk dialog
     bool isDebt = false;
     Customer? selectedCustomer;
-    int inputAmount = 0; // Uang yang diterima / DP
+    int inputAmount = 0;
+
+    // Cek status printer saat dialog dibuka
+    final printerProvider = Provider.of<PrinterProvider>(
+      context,
+      listen: false,
+    );
+    bool printReceipt =
+        printerProvider.isConnected; // Default ON jika printer connect
 
     showModalBottomSheet(
       context: context,
@@ -38,12 +49,11 @@ class _CartScreenState extends State<CartScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setStateModal) {
-            // Hitung kembalian atau sisa utang
             int changeOrDebt = 0;
             if (isDebt) {
-              changeOrDebt = cart.totalAmount - inputAmount; // Sisa Utang
+              changeOrDebt = cart.totalAmount - inputAmount;
             } else {
-              changeOrDebt = inputAmount - cart.totalAmount; // Kembalian
+              changeOrDebt = inputAmount - cart.totalAmount;
             }
 
             return Padding(
@@ -64,7 +74,7 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // --- PILIH PELANGGAN (Wajib jika Hutang) ---
+                  // --- PILIH PELANGGAN ---
                   InkWell(
                     onTap: () async {
                       final result = await Navigator.push(
@@ -116,9 +126,8 @@ class _CartScreenState extends State<CartScreen> {
                           if (selectedCustomer != null)
                             IconButton(
                               icon: const Icon(Icons.close, size: 16),
-                              onPressed: () {
-                                setStateModal(() => selectedCustomer = null);
-                              },
+                              onPressed: () =>
+                                  setStateModal(() => selectedCustomer = null),
                             )
                           else
                             const Icon(
@@ -132,25 +141,52 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // --- OPSI KASBON ---
+                  // --- OPSI KASBON & PRINT ---
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Switch(
-                        value: isDebt,
-                        onChanged: (val) {
-                          setStateModal(() {
-                            isDebt = val;
-                            // Jika pindah ke utang, validasi customer nanti di tombol bayar
-                          });
-                        },
+                      Row(
+                        children: [
+                          Switch(
+                            value: isDebt,
+                            onChanged: (val) =>
+                                setStateModal(() => isDebt = val),
+                          ),
+                          const Text("Kasbon"),
+                        ],
                       ),
-                      const Text("Catat sebagai Kasbon / Utang"),
+                      // 3. Toggle Cetak Struk
+                      Row(
+                        children: [
+                          const Text("Cetak Struk"),
+                          Checkbox(
+                            value: printReceipt,
+                            onChanged: printerProvider.isConnected
+                                ? (val) => setStateModal(
+                                    () => printReceipt = val ?? false,
+                                  )
+                                : null, // Disable jika printer mati
+                          ),
+                        ],
+                      ),
                     ],
                   ),
+
+                  // Info jika printer mati
+                  if (!printerProvider.isConnected)
+                    const Text(
+                      "* Sambungkan printer di Pengaturan untuk mencetak",
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.orange,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+
                   const Divider(),
 
                   // --- INPUT NOMINAL ---
-                  // Total Tagihan
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -179,7 +215,6 @@ class _CartScreenState extends State<CartScreen> {
                           : "Uang Diterima",
                       prefixText: "Rp ",
                       border: const OutlineInputBorder(),
-                      helperText: isDebt ? "Biarkan 0 jika tidak ada DP" : null,
                     ),
                     onChanged: (val) {
                       setStateModal(() {
@@ -189,7 +224,7 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // --- INFO KEMBALIAN / SISA UTANG ---
+                  // --- INFO KEMBALIAN ---
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -213,9 +248,7 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                         ),
                         Text(
-                          _currencyFormat.format(
-                            isDebt ? changeOrDebt : changeOrDebt,
-                          ),
+                          _currencyFormat.format(changeOrDebt.abs()),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -235,30 +268,31 @@ class _CartScreenState extends State<CartScreen> {
                   // --- TOMBOL PROSES ---
                   ElevatedButton(
                     onPressed: () async {
-                      // Validasi Dasar
                       if (isDebt && selectedCustomer == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text(
-                              "Harap pilih pelanggan untuk transaksi Kasbon!",
-                            ),
+                            content: Text("Pilih pelanggan untuk Kasbon!"),
                             backgroundColor: Colors.red,
                           ),
                         );
                         return;
                       }
-
                       if (!isDebt && inputAmount < cart.totalAmount) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text("Uang tunai kurang!"),
+                            content: Text("Uang kurang!"),
                             backgroundColor: Colors.red,
                           ),
                         );
                         return;
                       }
 
-                      // 1. Proses Checkout
+                      // FIX: Simpan salinan data item dan total SEBELUM checkout
+                      // Karena processCheckout akan menghapus isi cart
+                      final itemsToPrint = List<CartItem>.from(cart.items);
+                      final totalToPrint = cart.totalAmount;
+
+                      // 4. Proses Simpan Transaksi
                       bool success = await cart.processCheckout(
                         paymentAmount: inputAmount,
                         paymentMethod: isDebt ? 'DEBT' : 'CASH',
@@ -267,22 +301,55 @@ class _CartScreenState extends State<CartScreen> {
                       );
 
                       if (success) {
-                        // 2. Refresh Stok
                         if (mounted) {
+                          // 5. Logic Cetak Struk
+                          if (printReceipt && printerProvider.isConnected) {
+                            try {
+                              // Buat objek Transaction sementara untuk struk
+                              final tempTransaction = TransactionModel(
+                                id: 0, // Placeholder ID
+                                totalAmount:
+                                    totalToPrint, // Gunakan total yang disimpan
+                                paymentMethod: isDebt ? 'DEBT' : 'CASH',
+                                transactionDate: DateTime.now()
+                                    .toIso8601String(),
+                                amountPaid: inputAmount,
+                                debtAmount: isDebt
+                                    ? (totalToPrint - inputAmount)
+                                    : 0,
+                                isDebt: isDebt,
+                                customerName: selectedCustomer?.name,
+                              );
+
+                              // Generate Bytes dan Print
+                              final receiptBytes =
+                                  await ReceiptGenerator.generateReceipt(
+                                    tempTransaction,
+                                    itemsToPrint, // Gunakan item yang disimpan
+                                  );
+
+                              await printerProvider.printBytes(receiptBytes);
+                            } catch (e) {
+                              debugPrint("Gagal mencetak struk: $e");
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Gagal mencetak struk"),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+
                           Provider.of<ProductProvider>(
                             context,
                             listen: false,
                           ).getProducts(isRefresh: true);
-                          Navigator.pop(context); // Tutup Modal
-                          Navigator.pop(context); // Tutup Layar Cart
+                          Navigator.pop(context);
+                          Navigator.pop(context);
 
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                isDebt
-                                    ? "Kasbon berhasil dicatat!"
-                                    : "Transaksi Lunas Berhasil!",
-                              ),
+                            const SnackBar(
+                              content: Text("Transaksi Berhasil!"),
                               backgroundColor: Colors.green,
                             ),
                           );
@@ -295,7 +362,7 @@ class _CartScreenState extends State<CartScreen> {
                       foregroundColor: Colors.white,
                     ),
                     child: Text(
-                      isDebt ? "SIMPAN UTANG" : "BAYAR SEKARANG",
+                      isDebt ? "SIMPAN UTANG" : "BAYAR & CETAK",
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -311,6 +378,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  // ... (Bagian build() tetap sama seperti sebelumnya)
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -320,7 +388,6 @@ class _CartScreenState extends State<CartScreen> {
           if (cart.items.isEmpty) {
             return const Center(child: Text("Keranjang kosong"));
           }
-
           return Column(
             children: [
               Expanded(
@@ -332,7 +399,6 @@ class _CartScreenState extends State<CartScreen> {
                     final item = cart.items[i];
                     return Row(
                       children: [
-                        // Nama Produk & Harga
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,8 +419,6 @@ class _CartScreenState extends State<CartScreen> {
                             ],
                           ),
                         ),
-
-                        // Counter Qty
                         IconButton(
                           icon: const Icon(
                             Icons.remove_circle_outline,
@@ -376,8 +440,6 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                           onPressed: () => cart.increaseQty(i),
                         ),
-
-                        // Subtotal
                         SizedBox(
                           width: 80,
                           child: Text(
@@ -391,8 +453,6 @@ class _CartScreenState extends State<CartScreen> {
                   },
                 ),
               ),
-
-              // Bottom Action
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
