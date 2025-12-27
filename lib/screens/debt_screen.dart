@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/customer_provider.dart';
+import '../models/transaction_model.dart'; // Import untuk DebtHistoryModel
 
 class DebtScreen extends StatefulWidget {
   const DebtScreen({super.key});
@@ -37,99 +38,186 @@ class _DebtScreenState extends State<DebtScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          20,
-          20,
-          MediaQuery.of(ctx).viewInsets.bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              "Form Pelunasan",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-
-            // Info Pelanggan
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                MediaQuery.of(ctx).viewInsets.bottom + 20,
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    "Pelanggan: $customerName",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "Sisa Utang: ${_currencyFormat.format(currentDebt)}",
+                    "Pelunasan: $customerName",
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Colors.red,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Info Sisa Utang
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Sisa Utang Saat Ini:"),
+                        Text(
+                          _currencyFormat.format(currentDebt),
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // --- LIST RIWAYAT PEMBAYARAN ---
+                  const Text(
+                    "Riwayat Pembayaran:",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 120, // Batasi tinggi
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: FutureBuilder<List<DebtHistoryModel>>(
+                      future: Provider.of<CustomerProvider>(
+                        context,
+                        listen: false,
+                      ).getTransactionHistory(transId),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          );
+                        }
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              "Belum ada riwayat pembayaran",
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          itemCount: snapshot.data!.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) {
+                            final history = snapshot.data![i];
+                            final date = DateTime.parse(history.date);
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    DateFormat(
+                                      'dd MMM yyyy HH:mm',
+                                    ).format(date),
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    _currencyFormat.format(history.amountPaid),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Input Bayar
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: "Bayar / Cicil (Rp)",
+                      prefixText: "Rp ",
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  ElevatedButton(
+                    onPressed: () async {
+                      final amount = int.tryParse(amountController.text) ?? 0;
+                      if (amount > 0 && amount <= currentDebt) {
+                        await Provider.of<CustomerProvider>(
+                          context,
+                          listen: false,
+                        ).repayDebt(transId, amount);
+
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Pembayaran berhasil dicatat"),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } else {
+                        if (mounted)
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Nominal tidak valid"),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text(
+                      "SIMPAN PEMBAYARAN",
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 20),
-
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: "Jumlah Bayar / Cicil",
-                prefixText: "Rp ",
-                border: OutlineInputBorder(),
-                helperText: "Masukkan nominal pembayaran",
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                final amount = int.tryParse(amountController.text) ?? 0;
-                if (amount > 0 && amount <= currentDebt) {
-                  Provider.of<CustomerProvider>(
-                    context,
-                    listen: false,
-                  ).repayDebt(transId, amount);
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Pembayaran berhasil dicatat"),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Nominal tidak valid"),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text(
-                "PROSES PEMBAYARAN",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -167,14 +255,9 @@ class _DebtScreenState extends State<DebtScreen> {
             itemCount: provider.debtTransactions.length,
             itemBuilder: (ctx, i) {
               final trans = provider.debtTransactions[i];
-              // Mengambil tanggal
               final date =
                   DateTime.tryParse(trans.transactionDate) ?? DateTime.now();
-              final dateStr = DateFormat('dd MMM yyyy').format(date);
-
-              // Nama Pelanggan (Fallback jika null)
-              final customerName =
-                  trans.customerName ?? "Pelanggan Umum / Terhapus";
+              final customerName = trans.customerName ?? "Pelanggan Umum";
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -184,7 +267,6 @@ class _DebtScreenState extends State<DebtScreen> {
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: Column(
@@ -209,7 +291,7 @@ class _DebtScreenState extends State<DebtScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  "Tgl: $dateStr • ID: #${trans.id}",
+                                  "Tgl: ${DateFormat('dd MMM yyyy').format(date)} • ID: #${trans.id}",
                                   style: const TextStyle(
                                     color: Colors.grey,
                                     fontSize: 12,
@@ -271,8 +353,11 @@ class _DebtScreenState extends State<DebtScreen> {
                               foregroundColor: Colors.blue,
                               elevation: 0,
                             ),
-                            icon: const Icon(Icons.payment, size: 18),
-                            label: const Text("Bayar / Cicil"),
+                            icon: const Icon(
+                              Icons.history,
+                              size: 18,
+                            ), // Ganti icon jadi history/payment
+                            label: const Text("Bayar / Detail"),
                           ),
                         ],
                       ),
