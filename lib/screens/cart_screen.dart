@@ -3,10 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/cart_provider.dart';
 import '../providers/product_provider.dart';
-import '../providers/printer_provider.dart'; // 1. Import Printer Provider
+import '../providers/printer_provider.dart';
+import '../providers/settings_provider.dart'; // <--- Import Settings
 import '../models/customer_model.dart';
-import '../models/transaction_model.dart'; // Import TransactionModel untuk struk
-import '../utils/receipt_generator.dart'; // 2. Import Generator Struk
+import '../models/transaction_model.dart';
+import '../utils/receipt_generator.dart';
 import 'customer_list_screen.dart';
 
 class CartScreen extends StatefulWidget {
@@ -23,22 +24,23 @@ class _CartScreenState extends State<CartScreen> {
     decimalDigits: 0,
   );
 
-  // Fungsi Payment Dialog
   void _showPaymentDialog(CartProvider cart) {
     final amountController = TextEditingController();
-
-    // State lokal untuk dialog
     bool isDebt = false;
     Customer? selectedCustomer;
     int inputAmount = 0;
 
-    // Cek status printer saat dialog dibuka
     final printerProvider = Provider.of<PrinterProvider>(
       context,
       listen: false,
     );
-    bool printReceipt =
-        printerProvider.isConnected; // Default ON jika printer connect
+    // Ambil Settings Toko
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+
+    bool printReceipt = printerProvider.isConnected;
 
     showModalBottomSheet(
       context: context,
@@ -84,11 +86,8 @@ class _CartScreenState extends State<CartScreen> {
                               const CustomerListScreen(isPicker: true),
                         ),
                       );
-                      if (result != null && result is Customer) {
-                        setStateModal(() {
-                          selectedCustomer = result;
-                        });
-                      }
+                      if (result != null && result is Customer)
+                        setStateModal(() => selectedCustomer = result);
                     },
                     child: Container(
                       padding: const EdgeInsets.all(12),
@@ -141,7 +140,7 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // --- OPSI KASBON & PRINT ---
+                  // --- OPSI ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -155,7 +154,6 @@ class _CartScreenState extends State<CartScreen> {
                           const Text("Kasbon"),
                         ],
                       ),
-                      // 3. Toggle Cetak Struk
                       Row(
                         children: [
                           const Text("Cetak Struk"),
@@ -165,17 +163,15 @@ class _CartScreenState extends State<CartScreen> {
                                 ? (val) => setStateModal(
                                     () => printReceipt = val ?? false,
                                   )
-                                : null, // Disable jika printer mati
+                                : null,
                           ),
                         ],
                       ),
                     ],
                   ),
-
-                  // Info jika printer mati
                   if (!printerProvider.isConnected)
                     const Text(
-                      "* Sambungkan printer di Pengaturan untuk mencetak",
+                      "* Printer tidak terhubung",
                       style: TextStyle(
                         fontSize: 10,
                         color: Colors.orange,
@@ -186,7 +182,6 @@ class _CartScreenState extends State<CartScreen> {
 
                   const Divider(),
 
-                  // --- INPUT NOMINAL ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -216,15 +211,12 @@ class _CartScreenState extends State<CartScreen> {
                       prefixText: "Rp ",
                       border: const OutlineInputBorder(),
                     ),
-                    onChanged: (val) {
-                      setStateModal(() {
-                        inputAmount = int.tryParse(val) ?? 0;
-                      });
-                    },
+                    onChanged: (val) => setStateModal(
+                      () => inputAmount = int.tryParse(val) ?? 0,
+                    ),
                   ),
                   const SizedBox(height: 10),
 
-                  // --- INFO KEMBALIAN ---
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -265,7 +257,6 @@ class _CartScreenState extends State<CartScreen> {
 
                   const SizedBox(height: 20),
 
-                  // --- TOMBOL PROSES ---
                   ElevatedButton(
                     onPressed: () async {
                       if (isDebt && selectedCustomer == null) {
@@ -287,12 +278,9 @@ class _CartScreenState extends State<CartScreen> {
                         return;
                       }
 
-                      // FIX: Simpan salinan data item dan total SEBELUM checkout
-                      // Karena processCheckout akan menghapus isi cart
                       final itemsToPrint = List<CartItem>.from(cart.items);
                       final totalToPrint = cart.totalAmount;
 
-                      // 4. Proses Simpan Transaksi
                       bool success = await cart.processCheckout(
                         paymentAmount: inputAmount,
                         paymentMethod: isDebt ? 'DEBT' : 'CASH',
@@ -302,14 +290,11 @@ class _CartScreenState extends State<CartScreen> {
 
                       if (success) {
                         if (mounted) {
-                          // 5. Logic Cetak Struk
                           if (printReceipt && printerProvider.isConnected) {
                             try {
-                              // Buat objek Transaction sementara untuk struk
                               final tempTransaction = TransactionModel(
-                                id: 0, // Placeholder ID
-                                totalAmount:
-                                    totalToPrint, // Gunakan total yang disimpan
+                                id: 0,
+                                totalAmount: totalToPrint,
                                 paymentMethod: isDebt ? 'DEBT' : 'CASH',
                                 transactionDate: DateTime.now()
                                     .toIso8601String(),
@@ -321,11 +306,15 @@ class _CartScreenState extends State<CartScreen> {
                                 customerName: selectedCustomer?.name,
                               );
 
-                              // Generate Bytes dan Print
+                              // GENERATE STRUK DENGAN INFO TOKO
                               final receiptBytes =
                                   await ReceiptGenerator.generateReceipt(
                                     tempTransaction,
-                                    itemsToPrint, // Gunakan item yang disimpan
+                                    itemsToPrint,
+                                    // Pass data toko dari provider
+                                    shopName: settingsProvider.shopName,
+                                    address: settingsProvider.shopAddress,
+                                    phone: settingsProvider.shopPhone,
                                   );
 
                               await printerProvider.printBytes(receiptBytes);
@@ -346,7 +335,6 @@ class _CartScreenState extends State<CartScreen> {
                           ).getProducts(isRefresh: true);
                           Navigator.pop(context);
                           Navigator.pop(context);
-
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text("Transaksi Berhasil!"),
@@ -378,16 +366,16 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  // ... (Bagian build() tetap sama seperti sebelumnya)
   @override
   Widget build(BuildContext context) {
+    // Copy paste build method dari file sebelumnya (tidak ada perubahan di bagian build UI utama)
+    // Gunakan kode cart_screen.dart yang terakhir saya berikan untuk bagian build()
     return Scaffold(
       appBar: AppBar(title: const Text("Keranjang Belanja")),
       body: Consumer<CartProvider>(
         builder: (context, cart, _) {
-          if (cart.items.isEmpty) {
+          if (cart.items.isEmpty)
             return const Center(child: Text("Keranjang kosong"));
-          }
           return Column(
             children: [
               Expanded(
