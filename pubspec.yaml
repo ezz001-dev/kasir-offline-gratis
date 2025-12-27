@@ -48,8 +48,8 @@ dependencies:
 
   # --- Hardware Features (Siapkan dari sekarang) ---
   mobile_scanner: ^3.5.5 # Scan Barcode
-  # blue_thermal_printer: ^1.2.3 # (Opsional: Uncomment saat masuk fase printer)
-  # esc_pos_utils: ^1.1.0        # (Opsional: Untuk format struk)
+  blue_thermal_printer: ^1.2.3 # (Opsional: Uncomment saat masuk fase printer)
+  esc_pos_utils: ^1.1.0        # (Opsional: Untuk format struk)
 
 dev_dependencies:
   flutter_test:
