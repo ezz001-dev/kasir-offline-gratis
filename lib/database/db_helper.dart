@@ -11,9 +11,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB(
-      'toko_kasir_v2.db',
-    ); // Nama file bisa tetap atau ganti
+    _database = await _initDB('toko_kasir_v2.db'); // Nama file sama, versi naik
     return _database!;
   }
 
@@ -21,25 +19,34 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    // Ubah version menjadi 2
+    // Update versi ke 3
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
   }
 
-  // Logic Upgrade Database (Migrasi)
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Tambahkan kolom image_path jika update dari versi 1
       await db.execute('ALTER TABLE products ADD COLUMN image_path TEXT');
+    }
+    if (oldVersion < 3) {
+      // Migrasi Versi 3: Buat tabel debt_history
+      await db.execute('''
+      CREATE TABLE debt_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        transaction_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        amount_paid INTEGER NOT NULL,
+        FOREIGN KEY (transaction_id) REFERENCES transactions (id)
+      )
+      ''');
     }
   }
 
   Future _createDB(Database db, int version) async {
-    // Tabel Produk (Updated dengan image_path)
     await db.execute('''
     CREATE TABLE products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,9 +97,43 @@ class DatabaseHelper {
       FOREIGN KEY (product_id) REFERENCES products (id)
     )
     ''');
+
+    // Tabel baru untuk V3
+    await db.execute('''
+    CREATE TABLE debt_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      amount_paid INTEGER NOT NULL,
+      FOREIGN KEY (transaction_id) REFERENCES transactions (id)
+    )
+    ''');
   }
 
-  // --- CRUD OPERATIONS (Biarkan sama, hanya pastikan Model Product sudah terupdate) ---
+  // --- METHODS UNTUK DEBT HISTORY ---
+
+  Future<int> addDebtHistory(int transactionId, int amount, String date) async {
+    final db = await instance.database;
+    return await db.insert('debt_history', {
+      'transaction_id': transactionId,
+      'date': date,
+      'amount_paid': amount,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getDebtHistory(int transactionId) async {
+    final db = await instance.database;
+    return await db.query(
+      'debt_history',
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+      orderBy: 'date DESC',
+    );
+  }
+
+  // ... (Sisa method CRUD lainnya biarkan sama seperti sebelumnya) ...
+  // Paste ulang method createProduct, readProducts, dll disini jika Anda copy-paste full file.
+  // Untuk menghemat ruang, saya asumsikan bagian bawah file ini sama dengan versi sebelumnya.
 
   Future<int> createProduct(Product product) async {
     final db = await instance.database;
@@ -146,7 +187,6 @@ class DatabaseHelper {
     return await db.delete('products', where: 'id = ?', whereArgs: [id]);
   }
 
-  // --- Customer CRUD (Tetap sama) ---
   Future<int> createCustomer(Customer customer) async {
     final db = await instance.database;
     return await db.insert('customers', customer.toMap());
