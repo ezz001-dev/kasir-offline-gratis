@@ -197,4 +197,17 @@ class DatabaseHelper {
     final result = await db.query('customers', orderBy: 'name ASC');
     return result.map((json) => Customer.fromMap(json)).toList();
   }
+
+  // 1. Dapatkan Path Database
+  Future<String> get dbPath async {
+    final path = await getDatabasesPath();
+    return join(path, 'toko_kasir_v2.db');
+  }
+
+  // 2. Tutup Koneksi (Wajib dipanggil sebelum Restore)
+  Future<void> close() async {
+    final db = await instance.database;
+    db.close();
+    _database = null;
+  }
 }
