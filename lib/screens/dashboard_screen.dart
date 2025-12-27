@@ -4,6 +4,7 @@ import 'cashier_screen.dart';
 import 'customer_list_screen.dart'; // Import screen pelanggan
 import 'debt_screen.dart'; // Import screen kasbon
 import 'report_screen.dart'; // Import screen laporan
+import 'settings_screen.dart'; // Import screen pengaturan
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -80,6 +81,18 @@ class DashboardScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ReportScreen()),
+              );
+            },
+          ),
+          _buildMenuCard(
+            context,
+            icon: Icons.settings, // Icon Gear
+            title: "Pengaturan",
+            color: Colors.grey,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
             },
           ),
