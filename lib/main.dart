@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'providers/product_provider.dart';
 import 'providers/cart_provider.dart'; // Tambahkan ini
 import 'providers/customer_provider.dart';
+import 'providers/printer_provider.dart';
 
 // Import Screens
 import 'screens/dashboard_screen.dart';
@@ -26,6 +27,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProductProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => CustomerProvider()),
+        ChangeNotifierProvider(create: (_) => PrinterProvider()),
       ],
       child: MaterialApp(
         title: 'Aplikasi Kasir Offline',
