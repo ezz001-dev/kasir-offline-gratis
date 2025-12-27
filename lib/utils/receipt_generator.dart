@@ -1,7 +1,7 @@
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
-import '../providers/cart_provider.dart'; // Untuk model CartItem
+import '../providers/cart_provider.dart';
 
 class ReceiptGenerator {
   static final _currencyFormat = NumberFormat.currency(
@@ -13,14 +13,15 @@ class ReceiptGenerator {
   static Future<List<int>> generateReceipt(
     TransactionModel transaction,
     List<CartItem> items, {
-    String shopName = "TOKO UMKM BERKAH",
-    String address = "Jl. Merdeka No. 45, Bandung",
+    String shopName = "TOKO UMKM", // Default
+    String address = "-", // Default
+    String phone = "-", // Default
   }) async {
     final profile = await CapabilityProfile.load();
     final generator = Generator(PaperSize.mm58, profile);
     List<int> bytes = [];
 
-    // --- HEADER ---
+    // --- HEADER DINAMIS ---
     bytes += generator.reset();
     bytes += generator.text(
       shopName,
@@ -31,10 +32,19 @@ class ReceiptGenerator {
         bold: true,
       ),
     );
-    bytes += generator.text(
-      address,
-      styles: const PosStyles(align: PosAlign.center),
-    );
+
+    if (address.isNotEmpty) {
+      bytes += generator.text(
+        address,
+        styles: const PosStyles(align: PosAlign.center),
+      );
+    }
+    if (phone.isNotEmpty && phone != "-") {
+      bytes += generator.text(
+        "Telp: $phone",
+        styles: const PosStyles(align: PosAlign.center),
+      );
+    }
     bytes += generator.feed(1);
 
     bytes += generator.text(
@@ -47,9 +57,6 @@ class ReceiptGenerator {
     bytes += generator.hr(ch: '-');
 
     // --- LIST ITEM ---
-    // Format: Nama Produk (Baris 1)
-    //         Qty x Harga = Total (Baris 2, Rata Kanan)
-
     for (var item in items) {
       bytes += generator.text(
         item.product.name,
