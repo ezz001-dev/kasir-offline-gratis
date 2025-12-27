@@ -1,4 +1,4 @@
-import 'package:esc_pos_utils/esc_pos_utils.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import '../providers/cart_provider.dart';
