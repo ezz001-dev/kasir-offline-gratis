@@ -34,6 +34,9 @@ class _DebtScreenState extends State<DebtScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(
           20,
@@ -45,24 +48,48 @@ class _DebtScreenState extends State<DebtScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              "Pelunasan: $customerName",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Sisa Utang: ${_currencyFormat.format(currentDebt)}",
-              style: const TextStyle(color: Colors.red),
+            const Text(
+              "Form Pelunasan",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
+
+            // Info Pelanggan
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    "Pelanggan: $customerName",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Sisa Utang: ${_currencyFormat.format(currentDebt)}",
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
             TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
               autofocus: true,
               decoration: const InputDecoration(
-                labelText: "Jumlah Bayar",
+                labelText: "Jumlah Bayar / Cicil",
                 prefixText: "Rp ",
                 border: OutlineInputBorder(),
+                helperText: "Masukkan nominal pembayaran",
               ),
             ),
             const SizedBox(height: 20),
@@ -78,15 +105,27 @@ class _DebtScreenState extends State<DebtScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text("Pembayaran berhasil dicatat"),
+                      backgroundColor: Colors.green,
                     ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Nominal tidak valid")),
+                    const SnackBar(
+                      content: Text("Nominal tidak valid"),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               },
-              child: const Text("PROSES PEMBAYARAN"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text(
+                "PROSES PEMBAYARAN",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -108,15 +147,15 @@ class _DebtScreenState extends State<DebtScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.check_circle_outline,
-                    size: 64,
-                    color: Colors.green,
+                    size: 80,
+                    color: Colors.green.shade200,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     "Tidak ada piutang aktif",
-                    style: TextStyle(color: Colors.grey[600]),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 16),
                   ),
                 ],
               ),
@@ -128,8 +167,14 @@ class _DebtScreenState extends State<DebtScreen> {
             itemCount: provider.debtTransactions.length,
             itemBuilder: (ctx, i) {
               final trans = provider.debtTransactions[i];
-              // Note: Kita butuh join nama customer di query provider agar nama muncul di sini
-              // Untuk saat ini kita tampilkan Customer ID atau ambil dari join query provider
+              // Mengambil tanggal
+              final date =
+                  DateTime.tryParse(trans.transactionDate) ?? DateTime.now();
+              final dateStr = DateFormat('dd MMM yyyy').format(date);
+
+              // Nama Pelanggan (Fallback jika null)
+              final customerName =
+                  trans.customerName ?? "Pelanggan Umum / Terhapus";
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -139,23 +184,39 @@ class _DebtScreenState extends State<DebtScreen> {
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "ID Transaksi: #${trans.id}",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.person,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      customerName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              // Idealnya tampilkan nama customer disini
-                              const Text(
-                                "Pelanggan Berutang",
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ],
+                                const SizedBox(height: 4),
+                                Text(
+                                  "Tgl: $dateStr • ID: #${trans.id}",
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -163,8 +224,9 @@ class _DebtScreenState extends State<DebtScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.red.shade100,
+                              color: Colors.red.shade50,
                               borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.red.shade100),
                             ),
                             child: const Text(
                               "BELUM LUNAS",
@@ -193,7 +255,7 @@ class _DebtScreenState extends State<DebtScreen> {
                                 style: const TextStyle(
                                   color: Colors.red,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                  fontSize: 18,
                                 ),
                               ),
                             ],
@@ -202,7 +264,7 @@ class _DebtScreenState extends State<DebtScreen> {
                             onPressed: () => _showRepaymentDialog(
                               trans.id!,
                               trans.debtAmount,
-                              "Pelanggan",
+                              customerName,
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue.shade50,
@@ -210,7 +272,7 @@ class _DebtScreenState extends State<DebtScreen> {
                               elevation: 0,
                             ),
                             icon: const Icon(Icons.payment, size: 18),
-                            label: const Text("Bayar"),
+                            label: const Text("Bayar / Cicil"),
                           ),
                         ],
                       ),

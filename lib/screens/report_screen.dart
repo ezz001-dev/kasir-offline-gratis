@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart'; // 1. Tambahkan Import ini
 import '../database/db_helper.dart';
 import '../models/transaction_model.dart';
 
@@ -35,75 +36,86 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Future<void> _loadReportData() async {
+    // 2. Tambahkan baris ini untuk inisialisasi format tanggal Indonesia
+    await initializeDateFormatting('id_ID', null);
+
     setState(() => _isLoading = true);
 
-    final db = await DatabaseHelper.instance.database;
-    final now = DateTime.now();
-    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final now = DateTime.now();
+      final todayStr = DateFormat('yyyy-MM-dd').format(now);
 
-    // 1. Hitung Omset Hari Ini (Hanya yang LUNAS atau DP, Piutang tidak dihitung omset cash)
-    // Query ini menjumlahkan 'amount_paid' dari transaksi hari ini
-    final todayResult = await db.rawQuery('''
-      SELECT SUM(amount_paid) as total 
-      FROM transactions 
-      WHERE date(transaction_date) LIKE '$todayStr%'
-    ''');
-    _todayRevenue = (todayResult.first['total'] as int?) ?? 0;
-
-    // 2. Ambil 5 Transaksi Terakhir
-    final recentResult = await db.query(
-      'transactions',
-      orderBy: 'transaction_date DESC',
-      limit: 10,
-    );
-    _recentTransactions = recentResult
-        .map((json) => TransactionModel.fromMap(json))
-        .toList();
-
-    // 3. Siapkan Data Grafik (7 Hari ke belakang)
-    List<BarChartGroupData> chartGroups = [];
-    double maxVal = 0;
-
-    for (int i = 6; i >= 0; i--) {
-      final date = now.subtract(Duration(days: i));
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final dayName = DateFormat('E', 'id_ID').format(date); // Senin, Selasa..
-
-      final dayResult = await db.rawQuery('''
+      // 1. Hitung Omset Hari Ini (Hanya yang LUNAS atau DP, Piutang tidak dihitung omset cash)
+      final todayResult = await db.rawQuery('''
         SELECT SUM(amount_paid) as total 
         FROM transactions 
-        WHERE date(transaction_date) LIKE '$dateStr%'
+        WHERE date(transaction_date) LIKE '$todayStr%'
       ''');
+      _todayRevenue = (todayResult.first['total'] as int?) ?? 0;
 
-      final total = (dayResult.first['total'] as int?) ?? 0;
-      if (total > maxVal) maxVal = total.toDouble();
-
-      chartGroups.add(
-        BarChartGroupData(
-          x: 6 - i,
-          barRods: [
-            BarChartRodData(
-              toY: total.toDouble(),
-              color: Colors.blue,
-              width: 16,
-              borderRadius: BorderRadius.circular(4),
-              backDrawRodData: BackgroundBarChartRodData(
-                show: true,
-                toY: maxVal * 1.2, // Sedikit lebih tinggi dari max value
-                color: Colors.grey.shade100,
-              ),
-            ),
-          ],
-        ),
+      // 2. Ambil 10 Transaksi Terakhir
+      final recentResult = await db.query(
+        'transactions',
+        orderBy: 'transaction_date DESC',
+        limit: 10,
       );
-    }
+      _recentTransactions = recentResult
+          .map((json) => TransactionModel.fromMap(json))
+          .toList();
 
-    setState(() {
-      _weeklyChartData = chartGroups;
-      _maxChartValue = maxVal == 0 ? 1000 : maxVal * 1.2;
-      _totalTransactions = _recentTransactions.length;
-      _isLoading = false;
-    });
+      // 3. Siapkan Data Grafik (7 Hari ke belakang)
+      List<BarChartGroupData> chartGroups = [];
+      double maxVal = 0;
+
+      for (int i = 6; i >= 0; i--) {
+        final date = now.subtract(Duration(days: i));
+        final dateStr = DateFormat('yyyy-MM-dd').format(date);
+
+        // Query pendapatan per hari
+        final dayResult = await db.rawQuery('''
+          SELECT SUM(amount_paid) as total 
+          FROM transactions 
+          WHERE date(transaction_date) LIKE '$dateStr%'
+        ''');
+
+        final total = (dayResult.first['total'] as int?) ?? 0;
+        if (total > maxVal) maxVal = total.toDouble();
+
+        chartGroups.add(
+          BarChartGroupData(
+            x: 6 - i,
+            barRods: [
+              BarChartRodData(
+                toY: total.toDouble(),
+                color: Colors.blue,
+                width: 16,
+                borderRadius: BorderRadius.circular(4),
+                backDrawRodData: BackgroundBarChartRodData(
+                  show: true,
+                  toY:
+                      (maxVal == 0 ? 1000 : maxVal) *
+                      1.2, // Safety check biar tidak error division by zero
+                  color: Colors.grey.shade100,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _weeklyChartData = chartGroups;
+          _maxChartValue = maxVal == 0 ? 1000 : maxVal * 1.2;
+          _totalTransactions = _recentTransactions.length;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading report: $e");
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -194,8 +206,7 @@ class _ReportScreenState extends State<ReportScreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               getTitlesWidget: (value, meta) {
-                                // Logic sederhana untuk label hari (H-6 sampai H-0)
-                                // Ini hanya label statis untuk contoh, idealnya mapping dari data tanggal
+                                // Logic label hari
                                 final now = DateTime.now();
                                 final date = now.subtract(
                                   Duration(days: 6 - value.toInt()),
@@ -242,12 +253,10 @@ class _ReportScreenState extends State<ReportScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      TextButton(
-                        onPressed: () {},
-                        child: const Text("Lihat Semua"),
-                      ),
+                      // Tombol Lihat Semua bisa diimplementasikan nanti
                     ],
                   ),
+                  const SizedBox(height: 10),
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -264,7 +273,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                 ? Colors.orange.shade50
                                 : Colors.green.shade50,
                             child: Icon(
-                              trans.isDebt ? Colors.access_time : Colors.check,
+                              trans.isDebt ? Icons.access_time : Icons.check,
                               color: trans.isDebt
                                   ? Colors.orange
                                   : Colors.green,
@@ -276,7 +285,10 @@ class _ReportScreenState extends State<ReportScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            DateFormat('dd MMM yyyy, HH:mm').format(date),
+                            DateFormat(
+                              'dd MMM yyyy, HH:mm',
+                              'id_ID',
+                            ).format(date),
                           ),
                           trailing: trans.isDebt
                               ? Column(

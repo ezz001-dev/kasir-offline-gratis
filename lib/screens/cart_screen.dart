@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/cart_provider.dart';
-import '../providers/product_provider.dart'; // Untuk refresh stok setelah transaksi
+import '../providers/product_provider.dart';
+import '../models/customer_model.dart'; // Import Model Customer
+import 'customer_list_screen.dart'; // Import Screen untuk pilih customer
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -21,7 +23,11 @@ class _CartScreenState extends State<CartScreen> {
   // Fungsi Payment Dialog
   void _showPaymentDialog(CartProvider cart) {
     final amountController = TextEditingController();
-    int change = 0; // Kembalian
+
+    // State lokal untuk dialog
+    bool isDebt = false;
+    Customer? selectedCustomer;
+    int inputAmount = 0; // Uang yang diterima / DP
 
     showModalBottomSheet(
       context: context,
@@ -32,6 +38,14 @@ class _CartScreenState extends State<CartScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setStateModal) {
+            // Hitung kembalian atau sisa utang
+            int changeOrDebt = 0;
+            if (isDebt) {
+              changeOrDebt = cart.totalAmount - inputAmount; // Sisa Utang
+            } else {
+              changeOrDebt = inputAmount - cart.totalAmount; // Kembalian
+            }
+
             return Padding(
               padding: EdgeInsets.fromLTRB(
                 20,
@@ -50,108 +64,239 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Total Tagihan
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        const Text("Total Tagihan"),
-                        Text(
-                          _currencyFormat.format(cart.totalAmount),
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade800,
-                          ),
+                  // --- PILIH PELANGGAN (Wajib jika Hutang) ---
+                  InkWell(
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const CustomerListScreen(isPicker: true),
                         ),
-                      ],
+                      );
+                      if (result != null && result is Customer) {
+                        setStateModal(() {
+                          selectedCustomer = result;
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                        color: selectedCustomer != null
+                            ? Colors.blue.shade50
+                            : Colors.white,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.person,
+                            color: selectedCustomer != null
+                                ? Colors.blue
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              selectedCustomer != null
+                                  ? selectedCustomer!.name
+                                  : "Pilih Pelanggan (Opsional)",
+                              style: TextStyle(
+                                fontWeight: selectedCustomer != null
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: selectedCustomer != null
+                                    ? Colors.blue.shade800
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ),
+                          if (selectedCustomer != null)
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 16),
+                              onPressed: () {
+                                setStateModal(() => selectedCustomer = null);
+                              },
+                            )
+                          else
+                            const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  // Input Uang
+                  // --- OPSI KASBON ---
+                  Row(
+                    children: [
+                      Switch(
+                        value: isDebt,
+                        onChanged: (val) {
+                          setStateModal(() {
+                            isDebt = val;
+                            // Jika pindah ke utang, validasi customer nanti di tombol bayar
+                          });
+                        },
+                      ),
+                      const Text("Catat sebagai Kasbon / Utang"),
+                    ],
+                  ),
+                  const Divider(),
+
+                  // --- INPUT NOMINAL ---
+                  // Total Tagihan
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Total Tagihan",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        _currencyFormat.format(cart.totalAmount),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
                   TextField(
                     controller: amountController,
                     keyboardType: TextInputType.number,
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      labelText: "Uang Diterima",
+                    decoration: InputDecoration(
+                      labelText: isDebt
+                          ? "Bayar DP (Opsional)"
+                          : "Uang Diterima",
                       prefixText: "Rp ",
+                      border: const OutlineInputBorder(),
+                      helperText: isDebt ? "Biarkan 0 jika tidak ada DP" : null,
                     ),
                     onChanged: (val) {
                       setStateModal(() {
-                        int paid = int.tryParse(val) ?? 0;
-                        change = paid - cart.totalAmount;
+                        inputAmount = int.tryParse(val) ?? 0;
                       });
                     },
                   ),
                   const SizedBox(height: 10),
 
-                  // Info Kembalian
-                  if (change >= 0)
-                    Text(
-                      "Kembalian: ${_currencyFormat.format(change)}",
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    )
-                  else
-                    Text(
-                      "Kurang: ${_currencyFormat.format(change.abs())}",
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  // --- INFO KEMBALIAN / SISA UTANG ---
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDebt
+                          ? Colors.orange.shade50
+                          : (changeOrDebt >= 0
+                                ? Colors.green.shade50
+                                : Colors.red.shade50),
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isDebt ? "Sisa Utang:" : "Kembalian:",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isDebt
+                                ? Colors.orange.shade900
+                                : Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          _currencyFormat.format(
+                            isDebt ? changeOrDebt : changeOrDebt,
+                          ),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: isDebt
+                                ? Colors.orange.shade900
+                                : (changeOrDebt >= 0
+                                      ? Colors.green.shade800
+                                      : Colors.red.shade800),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                   const SizedBox(height: 20),
 
-                  // Tombol Proses
+                  // --- TOMBOL PROSES ---
                   ElevatedButton(
-                    onPressed:
-                        (int.tryParse(amountController.text) ?? 0) >=
-                            cart.totalAmount
-                        ? () async {
-                            // 1. Proses Checkout
-                            bool success = await cart.processCheckout(
-                              paymentAmount: int.parse(amountController.text),
-                              paymentMethod: 'CASH',
-                            );
+                    onPressed: () async {
+                      // Validasi Dasar
+                      if (isDebt && selectedCustomer == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Harap pilih pelanggan untuk transaksi Kasbon!",
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
 
-                            if (success) {
-                              // 2. Refresh Stok di halaman Kasir/Produk
-                              if (mounted) {
-                                Provider.of<ProductProvider>(
-                                  context,
-                                  listen: false,
-                                ).getProducts(isRefresh: true);
-                                Navigator.pop(context); // Tutup Modal
-                                Navigator.pop(context); // Tutup Layar Cart
+                      if (!isDebt && inputAmount < cart.totalAmount) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Uang tunai kurang!"),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
 
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Transaksi Berhasil!"),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              }
-                            }
-                          }
-                        : null, // Disable jika uang kurang
+                      // 1. Proses Checkout
+                      bool success = await cart.processCheckout(
+                        paymentAmount: inputAmount,
+                        paymentMethod: isDebt ? 'DEBT' : 'CASH',
+                        customerId: selectedCustomer?.id,
+                        isDebt: isDebt,
+                      );
+
+                      if (success) {
+                        // 2. Refresh Stok
+                        if (mounted) {
+                          Provider.of<ProductProvider>(
+                            context,
+                            listen: false,
+                          ).getProducts(isRefresh: true);
+                          Navigator.pop(context); // Tutup Modal
+                          Navigator.pop(context); // Tutup Layar Cart
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isDebt
+                                    ? "Kasbon berhasil dicatat!"
+                                    : "Transaksi Lunas Berhasil!",
+                              ),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      }
+                    },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.green,
+                      backgroundColor: isDebt ? Colors.orange : Colors.green,
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text(
-                      "BAYAR SEKARANG",
-                      style: TextStyle(
+                    child: Text(
+                      isDebt ? "SIMPAN UTANG" : "BAYAR SEKARANG",
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),

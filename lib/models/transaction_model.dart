@@ -3,15 +3,16 @@ class TransactionModel {
   final int totalAmount;
   final int discount;
   final int tax;
-  final String paymentMethod; // 'CASH', 'QRIS', 'DEBT'
+  final String paymentMethod;
   final String transactionDate;
 
-  // Fitur Piutang & Pelanggan
+  // Data Pelanggan & Utang
   final int? customerId;
-  final bool isDebt; // 1 = Utang, 0 = Lunas
-  final int amountPaid; // Jumlah yang dibayarkan saat itu
-  final int debtAmount; // Sisa utang
-  final String? dueDate; // Tanggal jatuh tempo (jika ada)
+  final String? customerName; // <--- FIELD BARU (Hasil Join)
+  final bool isDebt;
+  final int amountPaid;
+  final int debtAmount;
+  final String? dueDate;
 
   TransactionModel({
     this.id,
@@ -21,6 +22,7 @@ class TransactionModel {
     required this.paymentMethod,
     required this.transactionDate,
     this.customerId,
+    this.customerName, // <--- Tambahkan di Constructor
     this.isDebt = false,
     required this.amountPaid,
     this.debtAmount = 0,
@@ -36,7 +38,9 @@ class TransactionModel {
         paymentMethod: json['payment_method'],
         transactionDate: json['transaction_date'],
         customerId: json['customer_id'],
-        isDebt: json['is_debt'] == 1, // SQLite menyimpan bool sebagai 0/1
+        // Mengambil alias 'customer_name' dari query JOIN di CustomerProvider
+        customerName: json['customer_name'],
+        isDebt: json['is_debt'] == 1,
         amountPaid: json['amount_paid'] ?? 0,
         debtAmount: json['debt_amount'] ?? 0,
         dueDate: json['due_date'],
@@ -55,6 +59,8 @@ class TransactionModel {
       'amount_paid': amountPaid,
       'debt_amount': debtAmount,
       'due_date': dueDate,
+      // customerName tidak perlu disimpan ke tabel transactions,
+      // karena dia milik tabel customers
     };
   }
 }
@@ -64,8 +70,7 @@ class TransactionItem {
   final int? transactionId;
   final int productId;
   final int quantity;
-  final int
-  price; // Harga saat transaksi terjadi (penting jika harga produk berubah nanti)
+  final int price;
   final int subtotal;
 
   TransactionItem({
