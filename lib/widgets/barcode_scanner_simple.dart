@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter_beep/flutter_beep.dart';
 
 class SimpleBarcodeScannerPage extends StatefulWidget {
   const SimpleBarcodeScannerPage({super.key});
@@ -50,6 +51,9 @@ class _SimpleBarcodeScannerPageState extends State<SimpleBarcodeScannerPage> {
               for (final barcode in barcodes) {
                 if (barcode.rawValue != null) {
                   _isScanned = true;
+
+                  FlutterBeep.beep();
+
                   debugPrint('Barcode found! ${barcode.rawValue}');
                   Navigator.pop(
                     context,
