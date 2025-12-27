@@ -60,6 +60,9 @@ dependencies:
   csv: ^6.0.0
   share_plus: ^9.0.0
 
+  archive: ^3.3.7
+  file_picker: ^6.1.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
