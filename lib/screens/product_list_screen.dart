@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/product_provider.dart';
+import '../widgets/barcode_scanner_simple.dart'; // Import scanner
 import 'add_product_screen.dart';
 
 class ProductListScreen extends StatefulWidget {
@@ -50,6 +51,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
     Provider.of<ProductProvider>(context, listen: false).searchProduct(query);
   }
 
+  // Logic Search by Scan
+  void _onScanSearch() async {
+    final scannedCode = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SimpleBarcodeScannerPage()),
+    );
+
+    if (scannedCode != null) {
+      _searchController.text = scannedCode;
+      _onSearchChanged(scannedCode); // Trigger search otomatis
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -71,9 +85,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
             child: TextField(
               controller: _searchController,
               onChanged: _onSearchChanged,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: "Cari nama atau barcode...",
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
+                // Tombol Scan di dalam Search Bar
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.qr_code_scanner),
+                  onPressed: _onScanSearch,
+                  tooltip: "Scan Barcode untuk mencari",
+                ),
               ),
             ),
           ),
@@ -127,7 +147,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       ),
                       child: ListTile(
                         contentPadding: const EdgeInsets.all(10),
-                        // --- Update Logic Gambar Thumbnail ---
                         leading: Container(
                           width: 60,
                           height: 60,
@@ -156,7 +175,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                 )
                               : null,
                         ),
-                        // -------------------------------------
                         title: Text(
                           product.name,
                           style: const TextStyle(fontWeight: FontWeight.bold),
