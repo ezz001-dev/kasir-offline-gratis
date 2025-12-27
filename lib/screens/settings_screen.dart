@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart'; // Untuk Exit App
 import '../providers/printer_provider.dart';
-import '../providers/settings_provider.dart'; // Import Settings Provider
+import '../providers/settings_provider.dart';
+import '../utils/backup_helper.dart'; // Import Backup Helper
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -11,6 +13,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  // ... (Controller dan initState biarkan SAMA seperti sebelumnya)
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -19,13 +22,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 1. Load Data Toko
       final settings = Provider.of<SettingsProvider>(context, listen: false);
       _nameController.text = settings.shopName;
       _addressController.text = settings.shopAddress;
       _phoneController.text = settings.shopPhone;
 
-      // 2. Scan Printer
       final printer = Provider.of<PrinterProvider>(context, listen: false);
       printer.checkConnection();
       printer.scanDevices();
@@ -44,6 +45,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     FocusScope.of(context).unfocus();
   }
 
+  // Logic Restore UI
+  void _performRestore() async {
+    bool success = await BackupHelper.restoreBackup(context);
+    if (success && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Restore Berhasil"),
+          content: const Text(
+            "Data berhasil dipulihkan.\nSilakan restart aplikasi agar perubahan diterapkan dengan benar.",
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                // Keluar aplikasi (agar user buka ulang dan DB reload fresh)
+                SystemNavigator.pop();
+              },
+              child: const Text("Tutup Aplikasi"),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -59,7 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Identitas Toko (Untuk Struk)",
+                    "Identitas Toko",
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 16),
@@ -101,12 +128,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const Divider(thickness: 4, color: Colors.white),
 
-            // --- BAGIAN 2: PRINTER ---
+            // --- BAGIAN 2: DATA & KEAMANAN (FITUR BARU) ---
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Data & Keamanan",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => BackupHelper.createBackup(context),
+                          icon: const Icon(Icons.upload_file),
+                          label: const Text("Backup Data"),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _performRestore,
+                          icon: const Icon(Icons.download),
+                          label: const Text("Restore Data"),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: Colors.red,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "* Backup akan menyimpan Database & Gambar Produk ke dalam satu file ZIP.",
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const Divider(thickness: 4, color: Colors.white),
+
+            // --- BAGIAN 3: PRINTER (Biarkan SAMA PERSIS dengan sebelumnya) ---
             Consumer<PrinterProvider>(
               builder: (context, printer, child) {
                 return Column(
                   children: [
-                    // Header Status
                     Container(
                       padding: const EdgeInsets.all(16),
                       color: Colors.blue.shade50,
@@ -155,10 +233,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-
                     const Divider(height: 1),
-
-                    // Tombol Scan
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Row(
@@ -186,8 +261,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-
-                    // List Perangkat
+                    // ... (List Printer code sama seperti sebelumnya)
                     printer.devices.isEmpty
                         ? const Padding(
                             padding: EdgeInsets.all(20.0),
@@ -199,8 +273,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           )
                         : ListView.builder(
-                            shrinkWrap:
-                                true, // Agar tidak error di dalam SingleChildScrollView
+                            shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: printer.devices.length,
                             itemBuilder: (context, index) {
@@ -208,7 +281,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               final isConnected =
                                   printer.connectedMacAddress ==
                                   device.macAdress;
-
                               return ListTile(
                                 leading: const Icon(Icons.bluetooth),
                                 title: Text(device.name),
