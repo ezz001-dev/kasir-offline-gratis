@@ -68,6 +68,8 @@ dependencies:
 
   audioplayers: ^6.0.0
 
+  permission_handler: ^11.3.0
+
   
 
 dev_dependencies:

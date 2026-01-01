@@ -1,4 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+
+     <!-- IZIN DASAR (Android 11 ke bawah) perlu build lagi-->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- IZIN BARU (Android 12 / API 31+) -->
+    <!-- Wajib untuk melihat perangkat yang sudah dipairing -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Wajib jika ingin mencari perangkat baru (scan) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <application
         android:label="kasir_offline"
         android:name="${applicationName}"
